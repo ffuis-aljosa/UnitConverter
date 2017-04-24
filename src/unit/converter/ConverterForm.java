@@ -5,7 +5,17 @@
  */
 package unit.converter;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import javax.swing.JOptionPane;
+import org.json.JSONObject;
 
 /**
  *
@@ -13,7 +23,7 @@ import java.util.ArrayList;
  */
 public class ConverterForm extends javax.swing.JFrame {
 
-    private ArrayList<UnitGroup> unitGroups;
+    private final ArrayList<UnitGroup> unitGroups;
     
     /**
      * Creates new form ConverterForm
@@ -25,10 +35,24 @@ public class ConverterForm extends javax.swing.JFrame {
         unitGroups = new ArrayList<>();
         
         UnitGroup length = new UnitGroup("Length", "mm", 
-                new String[] { "cm", "dm", "m", "km" }, 
-                new double[] { 10, 100, 1000, 10000 });
+                new String[] { "cm", "dm", "m", "km", "inch", "foot", "yard", "mile" }, 
+                new double[] { 10, 100, 1000, 10000, 25.4, 304.8, 914.4, 1609000 });
         
         unitGroups.add(length);
+        
+        UnitGroup volume = new UnitGroup("Volume", "mm^3", 
+                new String[] { "cm^3", "dm^3", "m^3", "ml", "dl", "l", "gallon" }, 
+                new double[] { 1000, 1000000, 1000000000, 1000, 100000, 1000000, 4546090 });
+        
+        unitGroups.add(volume);
+        
+        UnitGroup pressure = new UnitGroup("Pressure", "atmosphere", 
+                new String[] { "Bar", "Pa", "Torr" }, 
+                new double[] { 0.986923, 9.8692e-6, 0.00131579 });
+        
+        unitGroups.add(pressure);
+        
+        unitGroups.add(getCurrencyUnitGroup());
         
         for (UnitGroup unitGroup : unitGroups)
             unitComboBox.addItem(unitGroup.getName());
@@ -69,6 +93,11 @@ public class ConverterForm extends javax.swing.JFrame {
         toLabel.setText("To");
 
         convertButton.setText("Convert");
+        convertButton.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                convertButtonActionPerformed(evt);
+            }
+        });
 
         valueStaticLabel.setText("Value");
 
@@ -130,9 +159,81 @@ public class ConverterForm extends javax.swing.JFrame {
         pack();
     }// </editor-fold>//GEN-END:initComponents
 
-    private void unitComboBoxActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_unitComboBoxActionPerformed
+    private UnitGroup getCurrencyUnitGroup()
+    {
+        String[] units = null;
+        double[] coeficients = null;
         
+        try {
+            URL url = new URL("http://api.fixer.io/latest");
+            
+            InputStream istream = url.openStream();
+            
+            BufferedReader reader = new BufferedReader(new InputStreamReader(istream));
+            
+            String response = "";
+            
+            int c;
+            
+            while((c = reader.read()) != -1) {
+                response += (char)c;
+            }
+            
+            JSONObject object = new JSONObject(response);
+            
+            JSONObject rates = object.getJSONObject("rates");
+            
+            units = new String[] { "GBP", "USD", "THB", "HUF", "CNY" };
+            coeficients = new double[] { 
+                rates.getDouble("GBP"), 
+                rates.getDouble("USD"),
+                rates.getDouble("THB"),
+                rates.getDouble("HUF"),
+                rates.getDouble("CNY")
+            };
+            
+        } catch (MalformedURLException ex) {
+            Logger.getLogger(ConverterForm.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            Logger.getLogger(ConverterForm.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        
+        return new UnitGroup("Currency", "EUR", units, coeficients);
+    }
+    
+    private UnitGroup getSelectedUnitGroup()
+    {
+        int selectedIndex = unitComboBox.getSelectedIndex();
+        return unitGroups.get(selectedIndex);
+    }
+    
+    private void unitComboBoxActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_unitComboBoxActionPerformed
+        UnitGroup selectedGroup = getSelectedUnitGroup();
+        
+        fromComboBox.removeAllItems();
+        toComboBox.removeAllItems();
+        
+        for (String unit : selectedGroup.getUnits()) {
+            fromComboBox.addItem(unit);
+            toComboBox.addItem(unit);
+        }
     }//GEN-LAST:event_unitComboBoxActionPerformed
+
+    private void convertButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_convertButtonActionPerformed
+        UnitGroup selectedGroup = getSelectedUnitGroup();
+        
+        String text = valueTextField.getText();
+        double number = 0;
+        
+        try {
+            number = Double.parseDouble(text);
+        } catch(NumberFormatException e) {
+            JOptionPane.showMessageDialog(rootPane, "Pogrešno unijeta vreijednost");
+        }
+        
+        double converted = selectedGroup.convert(number, fromComboBox.getSelectedIndex(), toComboBox.getSelectedIndex());
+        resultLabel.setText("" + converted);
+    }//GEN-LAST:event_convertButtonActionPerformed
 
     /**
      * @param args the command line arguments
